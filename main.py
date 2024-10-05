@@ -4,6 +4,10 @@ import requests
 import numpy as np
 import faiss
 import datetime
+from gtts import gTTS
+from pyt2s.services import stream_elements
+import pygame
+import speech_recognition as sr
 
 def get_mistral_api_key():
     """
@@ -48,6 +52,65 @@ def retrieve_similar_chunks(index, query_embedding, chunks, k=2):
     D, I = index.search(query_embedding, k)
     return [chunks[i] for i in I[0]]
 
+# Convert text to speech using pyt2s and play it using pygame
+def speak_text(text):
+    # Request TTS data using pyt2s
+    data = stream_elements.requestTTS(text, stream_elements.Voice.Joanna.value)
+
+    # Save the TTS audio as an mp3 file
+    with open("response.mp3", "wb") as file:
+        file.write(data)
+
+    # Initialize pygame mixer
+    pygame.mixer.init()
+
+    # Load and play the audio file
+    pygame.mixer.music.load("response.mp3")
+    pygame.mixer.music.play()
+
+    # Wait for playback to finish
+    while pygame.mixer.music.get_busy():
+        pygame.time.Clock().tick(10)
+
+    # Remove the audio file after playing
+    os.remove("response.mp3")
+
+
+# Get voice input and convert to text
+def get_voice_input():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        recognizer.adjust_for_ambient_noise(source, duration=1)
+        recognizer.energy_threshold = max(recognizer.energy_threshold, 400)
+        print("Listening... Please speak now.")
+
+        try:
+            # Attempt to capture speech for a short time
+            audio = recognizer.listen(source, timeout=2, phrase_time_limit=5)
+            # If no error occurs during listen, try to recognize the speech
+            text = recognizer.recognize_sphinx(audio)
+            if not text:
+                raise sr.UnknownValueError()  # Raise an error if empty text is captured
+
+            print(f"You said: {text}")
+            return text
+        except sr.WaitTimeoutError:
+            # If no speech is detected within the timeout, fall back to typing
+            print("No voice detected, please try again")
+            return None
+        except sr.UnknownValueError:
+            print("Sorry, I could not understand what you said. If you said nothing, please type your question")
+            return None
+        except sr.RequestError:
+            print("Could not request results; check your internet connection.")
+            return None
+
+# Get text input from the user
+def get_text_input():
+    text_input = input("Please type your question: ")
+    print(f"You typed: {text_input}")
+    return text_input
+
 # Summarize the conversation
 def summarize_conversation(conversation_history):
     summary = "Summary of the conversation:\n"
@@ -86,15 +149,37 @@ def ask_mistral_question():
     # Initialize conversation history
     conversation_history = []
 
-    while True:
-        # Prompt for user input
-        question = input("Ask Mistral AI a question (or type 'exit' to end): ")
-        # Exit the conversation if needed
-        if question.lower() in ['exit', 'quit', 'stop', 'end']:
-            print("Ending conversation.")
-            break
+    input_mode = input(
+        "Would you like to start with 'voice' or 'text' input? (type 'voice' or 'text'): ").strip().lower()
+    while input_mode not in ['voice', 'text']:
+        input_mode = input("Invalid input. Please type 'voice' or 'text': ").strip().lower()
 
-        # Create embedding for the user's question
+    while True:
+        # Get user input based on the current mode
+        if input_mode == 'voice':
+            question = get_voice_input()
+            if question is None:  # Fallback to text if voice is not understood
+                print("Switching to text input due to voice input issues.")
+                input_mode = 'text'
+                continue
+        else:  # Text input mode
+            question = get_text_input()
+
+        if question.lower() in ['exit', 'quit', 'stop', 'end']:
+                print("Ending conversation.")
+                break
+
+        # Get user question
+        #if input_mode == 'type':
+        #    question = input("Ask Mistral AI a question: ")
+        #elif input_mode == 'speak':
+        #    question = get_voice_input()
+        #    if question is None:
+        #        continue
+        #else:
+        #    print("Invalid option, please type 'type', 'speak', or 'exit'.")
+        #    continue
+    # Create embedding for the user's question
         question_embedding = np.array([get_text_embedding(client, question)])
 
         # Retrieve relevant chunks from FAISS
@@ -130,7 +215,7 @@ def ask_mistral_question():
         
         Instructions:
         1. **Detect Emotions**: Carefully detect and determine which emotions are expressed by {person} based on the query and context provided.
-        2. **Use Context**: Utilize the provided context information about {person} to make your response more specific and personalized.
+        2. **Use Context and previous conversation history**: Use the provided context information about {person} and conversation history to make your response more specific and personalized.
         3. **Reassure and Comfort**: If any negative emotions (such as sadness, loneliness, fear, anxiety, or embarrassment) are detected, provide a comforting, reassuring response. Acknowledge their emotions and offer empathetic support.
         4. **Provide Respectful Assistance**: Respond in a way that is helpful, ensuring that your answers are respectful and empowering for {person}. If {person} is seeking guidance or support, give simple, clear, and considerate advice.
         5. **Keep It Brief**: Ensure that your response is not too long. Aim to be concise while still being supportive and informative, so that {person} can easily understand and follow your advice.
@@ -154,7 +239,11 @@ def ask_mistral_question():
 
         # Get the response content
         response_content = chat_response.choices[0].message.content
+
+        # Print the response
         print("\nMistral AI Response:\n" + response_content)
+        # Speak the response out loud
+        speak_text(response_content)
 
         # Append the user's question and Mistral's response to the conversation history
         conversation_history.append(f"User: {question}")
