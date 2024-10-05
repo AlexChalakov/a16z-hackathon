@@ -108,7 +108,6 @@ def get_voice_input():
 # Get text input from the user
 def get_text_input():
     text_input = input("Please type your question: ")
-    print(f"You typed: {text_input}")
     return text_input
 
 # Summarize the conversation
@@ -125,12 +124,12 @@ def save_conversation_summary(summary, file_name='conversation_history_log.txt')
         file.write(f"\n--- New Conversation Summary ({timestamp}) ---\n")
         file.write(summary)
 
-# Ask question and retrieve chunks using Mistral API
+# Main function for interacting with Mistral API
 def ask_mistral_question():
     api_key = get_mistral_api_key()
     client = Mistral(api_key=api_key)
 
-    # Load previous summary as context
+    # Load previous conversation as context
     summary_text = load_user_data('conversation_history_log.txt')
 
     # Load user data from text file
@@ -156,29 +155,15 @@ def ask_mistral_question():
 
     while True:
         # Get user input based on the current mode
-        if input_mode == 'voice':
-            question = get_voice_input()
-            if question is None:  # Fallback to text if voice is not understood
-                print("Switching to text input due to voice input issues.")
-                input_mode = 'text'
-                continue
-        else:  # Text input mode
-            question = get_text_input()
+        question = get_voice_input() if input_mode == 'voice' else get_text_input()
+
+        if not question:
+            continue
 
         if question.lower() in ['exit', 'quit', 'stop', 'end']:
                 print("Ending conversation.")
                 break
 
-        # Get user question
-        #if input_mode == 'type':
-        #    question = input("Ask Mistral AI a question: ")
-        #elif input_mode == 'speak':
-        #    question = get_voice_input()
-        #    if question is None:
-        #        continue
-        #else:
-        #    print("Invalid option, please type 'type', 'speak', or 'exit'.")
-        #    continue
     # Create embedding for the user's question
         question_embedding = np.array([get_text_embedding(client, question)])
 
