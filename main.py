@@ -184,9 +184,10 @@ def ask_mistral_question():
 
         person = "John Doe"
 
-        final_prompt = f"""
+        system_prompt = f"""
         You are a compassionate conversational buddy whose primary role is to support and help {person}, a vulnerable elderly person. Always treat them with respect, kindness, and understanding, aiming to create a safe and comforting atmosphere.
-        
+        """
+        user_prompt = f"""
         Context information about {person} is provided below:
         ---------------------
         {context}
@@ -205,9 +206,9 @@ def ask_mistral_question():
         4. **Provide Respectful Assistance**: Respond in a way that is helpful, ensuring that your answers are respectful and empowering for {person}. If {person} is seeking guidance or support, give simple, clear, and considerate advice.
         5. **Keep It Brief**: Ensure that your response is not too long. Aim to be concise while still being supportive and informative, so that {person} can easily understand and follow your advice.
         
-        Given this context and considering the emotions detected in the query, respond in a sensitive, respectful, and empathetic manner that aims to be as helpful as possible.
-    
-        Query: {question}
+        Given this context and considering the emotions detected in the query, respond in a sensitive, respectful, and empathetic manner that aims to be helpful.
+        
+        enQuery: {question}
         Answer:
         """
 
@@ -216,8 +217,13 @@ def ask_mistral_question():
             model="pixtral-12b-2409", # Use the Pixtral model
             messages=[
                 {
+                    "role": "system",
+                    "content": system_prompt
+
+                },
+                {
                     "role": "user",
-                    "content": final_prompt,
+                    "content": user_prompt,
                 },
             ]
         )
