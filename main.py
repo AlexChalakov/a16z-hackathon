@@ -1,6 +1,6 @@
 import base64
 import os
-import requests
+import httpx
 import numpy as np
 import faiss
 import datetime
@@ -175,17 +175,19 @@ def process_user_query(input_data, person=None, is_image=False):
     """
 
     # Use Mistral to generate the final response
-    chat_response = client.chat.complete(
-        model="pixtral-12b-2409",
-        messages=[
-            {
-                "role": "user",
-                "content": final_prompt,
-            },
-        ]
-    )
-
-    response_content = chat_response.choices[0].message.content
+    try:
+        chat_response = client.chat.complete(
+            model="pixtral-12b-2409",
+            messages=[
+                {
+                    "role": "user",
+                    "content": final_prompt,
+                },
+            ]
+        )
+        response_content = chat_response.choices[0].message.content
+    except httpx.ReadError as e:
+        response_content = "I'm currently experiencing connection issues. Please try again in a moment."
 
     # Log the conversation history
     conversation_history.append(f"User: {input_data}")
