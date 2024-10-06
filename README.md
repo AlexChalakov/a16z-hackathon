@@ -2,6 +2,8 @@
 
 This project leverages **Mistral AI** models to create an interactive emotional AI companion, aimed at supporting the elderly and those with memory challenges. The AI Companion uses the **Pixtral-12B** model to process chat-based queries and image-based descriptions. Additionally, we have integrated a **Telegram Bot** for easy and personalized interactions.
 
+We have also fine-tuned **Mistral Large** using the [Empathetic Dialogues](https://github.com/facebookresearch/EmpatheticDialogues) dataset to create a more empathetic conversational agent (API fine-tuning for **Pixtral-12B** is not yet available).
+
 ## **Features**
 
 - **Text-Based Chat**: Interact with the AI using natural language. The bot is designed to provide empathetic and context-aware responses to support users.
