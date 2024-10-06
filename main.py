@@ -3,11 +3,15 @@ import requests
 import numpy as np
 import faiss
 import datetime
+from gtts import gTTS
+from pyt2s.services import stream_elements
+import pygame
+import speech_recognition as sr
 from mistralai import Mistral
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from bot import help_command, start, set_name, save_background, handle_message, user_data  # Import the bot functions
 
-conversation_history = []
+conversation_history = []  # Store the conversation history globally
 
 # --- Mistral AI Functions ---
 
@@ -179,6 +183,65 @@ def process_user_query(question, person=None):
 
     return response_content
 
+# --- Voice and Speech Functions ---
+
+# Convert text to speech using pyt2s and play it using pygame
+def speak_text(text):
+    # Request TTS data using pyt2s
+    data = stream_elements.requestTTS(text, stream_elements.Voice.Joanna.value)
+
+    # Save the TTS audio as an mp3 file
+    with open("response.mp3", "wb") as file:
+        file.write(data)
+
+    # Initialize pygame mixer
+    pygame.mixer.init()
+
+    # Load and play the audio file
+    pygame.mixer.music.load("response.mp3")
+    pygame.mixer.music.play()
+
+    # Wait for playback to finish
+    while pygame.mixer.music.get_busy():
+        pygame.time.Clock().tick(10)
+
+    # Remove the audio file after playing
+    os.remove("response.mp3")
+
+# Get voice input and convert to text
+def get_voice_input():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        recognizer.adjust_for_ambient_noise(source, duration=1)
+        recognizer.energy_threshold = max(recognizer.energy_threshold, 400)
+        print("Listening... Please speak now.")
+
+        try:
+            # Attempt to capture speech for a short time
+            audio = recognizer.listen(source, timeout=2, phrase_time_limit=5)
+            # If no error occurs during listen, try to recognize the speech
+            text = recognizer.recognize_sphinx(audio)
+            if not text:
+                raise sr.UnknownValueError()  # Raise an error if empty text is captured
+
+            print(f"You said: {text}")
+            return text
+        except sr.WaitTimeoutError:
+            # If no speech is detected within the timeout, fall back to typing
+            print("No voice detected, please try again")
+            return None
+        except sr.UnknownValueError:
+            print("Sorry, I could not understand what you said. If you said nothing, please type your question")
+            return None
+        except sr.RequestError:
+            print("Could not request results; check your internet connection.")
+            return None
+
+# Get text input from the user
+def get_text_input():
+    text_input = input("Please type your question: ")
+    return text_input
+
 # --- Bot Functions ---
 
 def run_bot():
@@ -207,10 +270,18 @@ def interactive_loop():
     """
     Interactive CLI method for text-based conversation.
     """
-    conversation_history = []
+    input_mode = input(
+        "Would you like to start with 'voice' or 'text' input? (type 'voice' or 'text'): ").strip().lower()
+    while input_mode not in ['voice', 'text']:
+        input_mode = input("Invalid input. Please type 'voice' or 'text': ").strip().lower()
 
     while True:
-        question = input("Ask Mistral AI a question (or type 'exit' to end): ")
+        # Get user input based on the current mode
+        question = get_voice_input() if input_mode == 'voice' else get_text_input()
+
+        if not question:
+            continue
+
         if question.lower() in ['exit', 'quit', 'stop', 'end']:
             print("Ending conversation.")
             break
@@ -218,6 +289,10 @@ def interactive_loop():
         response = process_user_query(question)
         print("\nMistral AI Response:\n" + response)
 
+        # Speak the response out loud
+        speak_text(response)
+
+        # Append the user's question and Mistral's response to the conversation history
         conversation_history.append(f"User: {question}")
         conversation_history.append(f"Mistral: {response}")
 
