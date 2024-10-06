@@ -41,6 +41,26 @@ async def save_background(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Please provide the background text.")
 
+import os
+
+async def process_image(update: Update, context: ContextTypes.DEFAULT_TYPE, process_user_query):
+    """Handles image messages from the user and processes it with Pixtral."""
+
+    # Create 'images' directory if it doesn't exist
+    if not os.path.exists('images'):
+        os.makedirs('images')
+    
+    # Get the file associated with the photo and download it
+    photo_file = await update.message.photo[-1].get_file()
+    local_image_path = os.path.join('images', 'user_image.jpg')
+    await photo_file.download_to_drive(local_image_path)  # Download the image locally
+
+    # Pass the image path to process_user_query for further processing and response
+    ai_response = process_user_query(local_image_path, user_data["name"], is_image=True)
+
+    # Respond to the user with the AI's output about the image
+    await update.message.reply_text(ai_response)
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Sends a list of available commands."""
     help_text = (

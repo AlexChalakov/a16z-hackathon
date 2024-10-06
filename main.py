@@ -1,3 +1,4 @@
+import base64
 import os
 import requests
 import numpy as np
@@ -9,7 +10,7 @@ import pygame
 import speech_recognition as sr
 from mistralai import Mistral
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from bot import help_command, start, set_name, save_background, handle_message, user_data  # Import the bot functions
+from bot import help_command, process_image, start, set_name, save_background, handle_message, user_data  # Import the bot functions
 
 conversation_history = []  # Store the conversation history globally
 
@@ -91,9 +92,9 @@ def save_conversation_summary(summary, file_name='conversation_history_log.txt')
         file.write(f"\n--- New Conversation Summary ({timestamp}) ---\n")
         file.write(summary)
 
-def process_user_query(question, person=None):
+def process_user_query(input_data, person=None, is_image=False):
     """
-    Process user query and generate a response using dynamic background file.
+    Process user query (text or image) and generate a response using dynamic background file.
     """
     api_key = get_mistral_api_key()
     client = Mistral(api_key=api_key)
@@ -110,6 +111,17 @@ def process_user_query(question, person=None):
     # Load previous summary as context (conversation history log)
     summary_text = load_user_data('conversation_history_log.txt')
 
+    # If input is an image, process the image and add to context
+    if is_image:
+        image_description = process_image_with_pixtral(input_data)  # Process image
+        user_data["background"] += f"\nImage content: {image_description}"
+        with open(background_file, 'a') as file:
+            file.write(f"\nImage content: {image_description}")
+
+        # Incorporate the image description into the conversation history
+        conversation_history.append(f"User shared an image. Description: {image_description}")
+        input_data = f"Image content: {image_description}"
+
     # Combine the summary (conversation history) and user background for context
     combined_text = summary_text + "\n" + background_text
     chunks = split_text_into_chunks(combined_text)
@@ -120,11 +132,11 @@ def process_user_query(question, person=None):
     # Load embeddings into FAISS
     index = load_embeddings_into_faiss(embeddings)
 
-    # Create embedding for the user's question
-    question_embedding = np.array([get_text_embedding(client, question)])
+    # Create embedding for the user's query or image description
+    query_embedding = np.array([get_text_embedding(client, input_data)])
 
     # Retrieve relevant chunks from FAISS
-    retrieved_chunks = retrieve_similar_chunks(index, question_embedding, chunks)
+    retrieved_chunks = retrieve_similar_chunks(index, query_embedding, chunks)
 
     # Combine retrieved chunks and conversation history for final prompt
     context = "\n".join(retrieved_chunks)
@@ -138,8 +150,8 @@ def process_user_query(question, person=None):
 
     # Create the final prompt with all required context and emotion considerations
     final_prompt = f"""
-    You are a compassionate conversational buddy whose primary role is to support and help {person}, a vulnerable elderly person. Always treat them with respect, kindness, and understanding, aiming to create a safe and comforting atmosphere.
-    
+    You are a compassionate conversational buddy whose primary role is to support and help {person}, a vulnerable elderly person. 
+    Always treat them with respect, kindness, and understanding, aiming to create a safe and comforting atmosphere.
     Context information about {person} is provided below:
     ---------------------
     {context}
@@ -158,7 +170,7 @@ def process_user_query(question, person=None):
     4. **Provide Respectful Assistance**: Respond in a way that is helpful, ensuring that your answers are respectful and empowering for {person}. If {person} is seeking guidance or support, give simple, clear, and considerate advice.
     5. **Keep It Brief**: Ensure that your response is not too long. Aim to be concise while still being supportive and informative, so that {person} can easily understand and follow your advice.
     
-    Query: {question}
+    Query: {input_data}
     Answer:
     """
 
@@ -176,7 +188,7 @@ def process_user_query(question, person=None):
     response_content = chat_response.choices[0].message.content
 
     # Log the conversation history
-    conversation_history.append(f"User: {question}")
+    conversation_history.append(f"User: {input_data}")
     conversation_history.append(f"Mistral: {response_content}")
     conversation_summary = summarize_conversation(conversation_history)
     save_conversation_summary(conversation_summary)
@@ -242,6 +254,53 @@ def get_text_input():
     text_input = input("Please type your question: ")
     return text_input
 
+# --- Image Recognition Functions ---
+def encode_image(image_path):
+    """Encode the image to base64."""
+    try:
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
+    except FileNotFoundError:
+        print(f"Error: The file {image_path} was not found.")
+        return None
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+    
+def process_image_with_pixtral(image_path):
+    """Process the image using Pixtral's image functionality."""
+    base64_image = encode_image(image_path)
+    if not base64_image:
+        return "Failed to process the image."
+
+    api_key = get_mistral_api_key()
+    client = Mistral(api_key=api_key)
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "What's in this image?"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": f"data:image/jpeg;base64,{base64_image}"
+                }
+            ]
+        }
+    ]
+
+    # Get the chat response from Mistral AI
+    chat_response = client.chat.complete(
+        model="pixtral-12b-2409",
+        messages=messages
+    )
+
+    # Return the content of the AI's response
+    return chat_response.choices[0].message.content
+
 # --- Bot Functions ---
 
 def run_bot():
@@ -257,9 +316,13 @@ def run_bot():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("name", set_name))
     application.add_handler(CommandHandler("background", save_background))
-    application.add_handler(CommandHandler("help", help_command))  # Add help command
+    application.add_handler(CommandHandler("help", help_command))
 
+    # Handle text messages from the user
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda update, context: handle_message(update, context, process_user_query)))
+
+    # Handle image messages from the user
+    application.add_handler(MessageHandler(filters.PHOTO, lambda update, context: process_image(update, context, process_user_query)))
 
     # Start the bot (polling)
     application.run_polling()
