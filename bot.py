@@ -8,6 +8,10 @@ user_data = {
     "background": ""
 }
 
+# Ensure the 'txt' directory exists
+if not os.path.exists('txt'):
+    os.makedirs('txt')
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Sends a welcome message when the bot is started."""
     await update.message.reply_text('Hello! I am your AI companion. Ask me anything!')
@@ -32,16 +36,14 @@ async def save_background(update: Update, context: ContextTypes.DEFAULT_TYPE):
         background_text = " ".join(context.args)
         user_data["background"] = background_text
         
-        # Save the background text to a file named after the user's name
-        background_file_name = f'{user_data["name"]}_background.txt'
+        # Save the background text to a file named after the user's name in the 'txt' folder
+        background_file_name = os.path.join('txt', f'{user_data["name"]}_background.txt')
         with open(background_file_name, 'w') as file:
             file.write(background_text)
         
         await update.message.reply_text(f"Background information saved for {user_data['name']}.")
     else:
         await update.message.reply_text("Please provide the background text.")
-
-import os
 
 async def process_image(update: Update, context: ContextTypes.DEFAULT_TYPE, process_user_query):
     """Handles image messages from the user and processes it with Pixtral."""

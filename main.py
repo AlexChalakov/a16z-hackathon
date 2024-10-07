@@ -30,8 +30,9 @@ def load_user_data(file_name):
     Load data from a text file for a specific user.
     If the file doesn't exist, return an empty string.
     """
-    if os.path.exists(file_name):
-        with open(file_name, 'r') as file:
+    file_path = os.path.join('txt', file_name)
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as file:
             return file.read()
     else:
         return ""
@@ -87,8 +88,9 @@ def save_conversation_summary(summary, file_name='conversation_history_log.txt')
     """
     Save the conversation summary to a file, appending each new summary.
     """
+    file_path = os.path.join('txt', file_name)
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(file_name, 'a') as file:
+    with open(file_path, 'a') as file:
         file.write(f"\n--- New Conversation Summary ({timestamp}) ---\n")
         file.write(summary)
 
@@ -103,7 +105,7 @@ def process_user_query(input_data, person=None, is_image=False):
     person = person if person else user_data["name"] if user_data["name"] else "John Doe"
 
     # Dynamically set the background filename based on the person's name
-    background_file = f"{person}_background.txt"
+    background_file = os.path.join('txt', f"{person}_background.txt")
 
     # Load the user's background information (if it exists)
     background_text = load_user_data(background_file)
