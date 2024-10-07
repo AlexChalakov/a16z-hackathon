@@ -90,4 +90,5 @@ Pull requests are welcome. For significant changes, please open an issue first t
 
 ## **Contact**
 
-For any questions or suggestions, please feel free to reach out via the repository's issue tracker or by contacting the bot's developer directly.
+For any questions or suggestions, please feel free to reach out via the repository's issue tracker or by contacting the bot's developer directly. You can see more here: https://devpost.com/software/companionai#updates
+
